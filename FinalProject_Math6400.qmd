@@ -1,0 +1,68 @@
+---
+title: "FinalProject_Math6400"
+author: 
+  "Ian Tai Ahn"
+  "Jared Pilcher"
+format: 
+  html:
+    html-math-method: katex
+    code-fold: true
+    self-contained: true
+editor: visual
+---
+
+```{r}
+# load the relevant tidymodels libraries
+library(tidymodels)
+library(tidyverse)
+library(workflows)
+library(tune)
+library(mlbench)
+library(doParallel)
+library(MASS)
+library(arrow)
+library(caret)
+library(e1071)
+library(caTools)
+library(naivebayes)
+```
+
+```{r}
+covid_df <- read_csv('Covid Data.csv')
+```
+
+```{r}
+head(covid_df)
+glimpse(covid_df)
+colnames(covid_df)
+```
+
+```{r}
+# Multiple linear regression model for helping to choose significant predictors
+# There is a problem with the y column aka date_died... I may have to convert them into a binary thing where I don't care about the date, rather just if they died and if they didn't.
+# 1 being yes they died, 0 being no they didn't die.
+# The classification column needs to be looked at further. I don't want to associate all deaths to covid...
+# Perhaps a 4 or higher on classification gets thrown out.
+
+covid_df$DATE_DIED <- as.Date(covid_df$DATE_DIED, origin = "1899-12-30")
+# glimpse(covid_df)
+
+covid_df$DATE_DIED <- ifelse(!is.na(covid_df$DATE_DIED), 1, 0)
+# glimpse(covid_df)
+
+fit_covid_lm <- lm(data = covid_df, DATE_DIED ~ .)
+summary(fit_covid_lm)
+anova(fit_covid_lm)
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
