@@ -44,25 +44,146 @@ colnames(covid_df)
 # The classification column needs to be looked at further. I don't want to associate all deaths to covid...
 # Perhaps a 4 or higher on classification gets thrown out.
 
+#TODO uncomment starts from here
+# covid_df$DATE_DIED <- as.Date(covid_df$DATE_DIED, origin = "1899-12-30")
+# # glimpse(covid_df)
+# 
+# covid_df$DATE_DIED <- ifelse(!is.na(covid_df$DATE_DIED), 1, 0)
+# # glimpse(covid_df)
+# 
+# fit_covid_lm <- lm(data = covid_df, DATE_DIED ~ .)
+# summary(fit_covid_lm)
+# anova(fit_covid_lm)
+```
+
+Log Regression
+
+```{r}
+# log_reg_model_all <- glm(formula = DATE_DIED ~ ., family = "binomial", data = covid_df)
+# summary(log_reg_model_all)
+# anova(log_reg_model_all)
+```
+
+```{r}
+# predicted_probs <- predict(log_reg_model_all, type = "response")
+# predicted_class <- ifelse(predicted_probs > 0.5, 1, 0)
+# 
+# predicted_class <- as.factor(predicted_class)
+# 
+# conf_matrix <- confusionMatrix(predicted_class, as.factor(covid_df$DATE_DIED))
+# 
+# print(conf_matrix)
+# 
+# 
+# confusion_matrix <- table(predicted_class, as.factor(covid_df$DATE_DIED))
+# 
+# accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+# 
+# test_error <- 1 - accuracy
+# print(paste0("Test Error: ", test_error))
+# 
+# roc_curve <- roc(as.factor(covid_df$DATE_DIED), predicted_probs)
+# 
+# auc_value <- auc(roc_curve)
+# 
+# print(paste("AUC:", round(auc_value, 3)))
+```
+
+TIDY MODEL version..
+
+First I want to use lasso, and perhaps ridge as my predictor selectors..
+
+Then we will use a total tidy model approach to this..
+
+```{r}
+# data <- covid_df %>%
+#   mutate(
+#     outcome = as.factor(ifelse(DATE_DIED == "9999-99-99", "Survived", "Died"))
+#   )
+
+# set.seed(3)
+# covid_df <- read_csv('Covid Data.csv')
+# glimpse(covid_df)
+# prostate_split <- initial_split(covid_df, strata = "lpsa", prop = 7/10)
+# 
+# prostate_train <- training(prostate_split)
+# prostate_test <- testing(prostate_split)
+# 
+# prostate_fold <- vfold_cv(prostate_train, v = 5)
+```
+
+### WORKING TIDY MODEL LOGISTIC REGRESSION
+
+```{r}
+# Changing date type to number, and we say 1 means yes they died, and 0 means no they didn't die.
+# we can swap the 0 and the 1 if it kind of confusing since this is usually swapped...
 covid_df$DATE_DIED <- as.Date(covid_df$DATE_DIED, origin = "1899-12-30")
-# glimpse(covid_df)
-
 covid_df$DATE_DIED <- ifelse(!is.na(covid_df$DATE_DIED), 1, 0)
-# glimpse(covid_df)
 
-fit_covid_lm <- lm(data = covid_df, DATE_DIED ~ .)
-summary(fit_covid_lm)
-anova(fit_covid_lm)
-```
+# We have about 1,000,000 rows, so this size=0.05 is grabbing 50k of them I beleive.
+# I had to do this because 1,000,000 was taking way to long and my laptop was about to fly away.
+data <- covid_df %>%
+  sample_frac(size = 0.05, replace = FALSE)
 
-```{r}
+# Split data
+set.seed(123)
+data_split <- initial_split(data, prop = 0.8, strata = DATE_DIED)
+train_data <- training(data_split)
+test_data <- testing(data_split)
 
-```
+# Specify model
+log_reg_model <- logistic_reg() %>%
+  set_engine("glm") %>%
+  set_mode("classification")
 
-```{r}
+# Create recipe
+log_reg_recipe <- recipe(DATE_DIED ~ ., data = data) %>%
+  step_mutate(DATE_DIED = as.factor(DATE_DIED)) %>%
+  step_novel(all_nominal_predictors()) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_numeric_predictors())
 
-```
+# Workflow
+log_reg_workflow <- workflow() %>%
+  add_model(log_reg_model) %>%
+  add_recipe(log_reg_recipe)
 
-```{r}
+# Fit model
+log_reg_fit <- log_reg_workflow %>%
+  last_fit(data_split)
 
+test_performance <- log_reg_fit %>% collect_metrics()
+test_performance
+
+test_predictions <- log_reg_fit %>%
+  collect_predictions() 
+test_predictions
+
+# generate a confusion matrix
+conf_matrix <- test_predictions %>%
+  conf_mat(truth = DATE_DIED, estimate = .pred_class)
+
+# Summarize the confusion matrix to get various metrics
+conf_matrix_summary <- conf_matrix %>%
+   summary()
+
+# Extract the misclassification error rate as 1 - accuracy
+misclassification_error_rate <- conf_matrix_summary %>%
+  filter(.metric == "accuracy") %>%
+  mutate(misclassification_error = 1 - .estimate) %>%
+  pull(misclassification_error)
+
+conf_matrix
+print(paste0("Misclassification Error Rate: ", misclassification_error_rate))
+
+# Evaluate model
+# results <- test_data %>%
+#   bind_cols(
+#     predict(log_reg_fit, test_data, type = "class"),
+#     predict(log_reg_fit, test_data, type = "prob")
+#   ) %>%
+#   rename(predicted_class = .pred_class)
+
+# conf_mat(results, truth = DATE_DIED, estimate = predicted_class)
+# metrics(results, truth = DATE_DIED, estimate = predicted_class)
 ```
